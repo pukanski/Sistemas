@@ -8,16 +8,17 @@ import java.util.List;
 
 public class Benchmark {
 
+    // configuracoes do benchmark
+    static final int RODADAS = 5;       // quantas vezes rodar para tirar a media
+    static final boolean WARMUP = true; // rodar uma vez antes sem contar (aquecimento da JVM)
+
     public static void main(String[] args) {
-        System.out.println("=================================================================");
-        System.out.println("   BENCHMARK DE SIMULAÇÃO DE TRÁFEGO (Nagel-Schreckenberg)      ");
-        System.out.println("=================================================================");
+        System.out.println("Benchmark de Simulacao de Trafego (Media de " + RODADAS + " rodadas)  ");
         System.out.println("Configuração:");
         System.out.printf("  Estrada (L): %d células\n", Config.L);
         System.out.printf("  Carros:      %d\n", Config.NUM_VEICULOS);
         System.out.printf("  Passos:      %d\n", Config.STEPS);
-        System.out.printf("  Threads:     %d (Hardware)\n", Config.NUM_THREADS);
-        System.out.println("=================================================================\n");
+        System.out.printf("  Threads:     %d\n", Config.NUM_THREADS);
 
         // lista das simulacoes testadas
         List<ISimulacao> simulacoes = new ArrayList<>();
@@ -28,55 +29,78 @@ public class Benchmark {
         simulacoes.add(new ParaleloPosicaoExecutor());
         simulacoes.add(new ParaleloPosicaoCyclicBarrier());
 
-        // arquitetura paralelo
+        // arquitetura memoria
         simulacoes.add(new SequencialMemoria());
         simulacoes.add(new ParaleloMemoriaStream());
         simulacoes.add(new ParaleloMemoriaExecutor());
         simulacoes.add(new ParaleloMemoriaCyclicBarrier());
 
-        // cabecalho
-        System.out.printf("%-35s | %-10s | %-15s\n", "IMPLEMENTAÇÃO", "TEMPO (ms)", "MEMÓRIA (MB)");
-        System.out.println("----------------------------------------------------------------------");
+        // cabecalho ajustado para media
+        System.out.printf("%-35s | %-15s | %-15s\n", "IMPLEMENTAÇÃO", "TEMPO MÉDIO (ms)", "MEMÓRIA PICO (MB)");
+        System.out.println("-------------------------------------------------------------------------");
 
-        // execocoes
+        // execucoes
         for (ISimulacao sim : simulacoes) {
             rodarTeste(sim);
         }
 
-        System.out.println("----------------------------------------------------------------------");
+        System.out.println("-------------------------------------------------------------------------");
         System.out.println("Benchmark concluído.");
     }
 
     static void rodarTeste(ISimulacao sim) {
-        // usa o garbage collector pra limpar a memoria antes da execucao
-        System.gc();
-        try {
-            Thread.sleep(500); // pausa pro gc funcionar direito
-        } catch (InterruptedException e) {}
+        long somaTempo = 0;
+        long maxMemoria = 0;
 
         try {
-            // monta a estrada
-            sim.inicializar();
+            // warmup do jit
+            if (WARMUP) {
+                System.gc();
+                sim.inicializar();
+                sim.executar();
+            }
 
-            // comeca as medicoes
-            long memoriaAntes = medMemoria();
-            long inicio = System.nanoTime();
+            // rodadas usadas pra calcular o tempo medio
+            for (int i = 0; i < RODADAS; i++) {
 
-            // simula o trafego
-            sim.executar();
+                // usa o garbage collector pra limpar a memoria antes da execucao
+                System.gc();
+                try {
+                    Thread.sleep(200); // pausa pro gc funcionar direito
+                } catch (InterruptedException e) {}
 
-            // termina as medicoes
-            long fim = System.nanoTime();
-            long memoriaDepois = medMemoria();
+                // monta a estrada
+                sim.inicializar();
 
-            // transforma de nano pra mili segundos
-            long tempoMs = (fim - inicio) / 1_000_000;
+                // comeca as medicoes
+                long memoriaAntes = medMemoria();
+                long inicio = System.nanoTime();
 
-            // memoria a mais que foi usada na simulacao
-            long usoMemoria = Math.max(0, memoriaDepois - memoriaAntes);
+                // simula o trafego
+                sim.executar();
 
-            // imprime as inforcacoes da simulacao
-            System.out.printf("%-35s | %-10d | %-15d\n", sim.getNome(), tempoMs, usoMemoria);
+                // termina as medicoes
+                long fim = System.nanoTime();
+                long memoriaDepois = medMemoria();
+
+                // transforma de nano pra mili segundos
+                long tempoMs = (fim - inicio) / 1_000_000;
+
+                // memoria a mais que foi usada na simulacao
+                long usoMemoria = Math.max(0, memoriaDepois - memoriaAntes);
+
+                // acumula para a media e verifica se foi o pico de memoria
+                somaTempo += tempoMs;
+                if (usoMemoria > maxMemoria) {
+                    maxMemoria = usoMemoria;
+                }
+            }
+
+            // calcula a media do tempo
+            double mediaTempo = (double) somaTempo / RODADAS;
+
+            // imprime as informacacoes da simulacao
+            System.out.printf("%-35s | %-15.1f | %-15d\n", sim.getNome(), mediaTempo, maxMemoria);
 
         } catch (Exception e) {
             System.out.printf("%-35s | FALHOU: %s\n", sim.getNome(), e.getMessage());
