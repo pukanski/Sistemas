@@ -1,0 +1,121 @@
+package distribuido.memoria.rmi;
+
+import core.Config;
+import model.VeiculoMemoria;
+import arquitetura.memoria.SequencialMemoria;
+
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.util.*;
+import java.util.concurrent.*;
+
+public class Master {
+    private int numSlaves;
+
+    private VeiculoMemoria[] estradaAtual;
+    private VeiculoMemoria[] proximaEstrada;
+    private ExecutorService executor;
+    private List<ISlave> slaves;
+
+    // construtor do master e ja inicializa a estrada
+    public Master(int n) {
+        this.numSlaves = n;
+        this.estradaAtual = new VeiculoMemoria[Config.L];
+        this.proximaEstrada = new VeiculoMemoria[Config.L];
+        this.slaves = new ArrayList<>();
+        this.executor = Executors.newFixedThreadPool(n);
+
+        SequencialMemoria.inicializarEstrada(estradaAtual);
+    }
+
+    public void conectar() throws Exception {
+        Registry registry = LocateRegistry.getRegistry("localhost");
+        System.out.println("Procurando " + numSlaves + " slaves...");
+
+        for (int i = 1; i <= numSlaves; i++) {
+            // tenta se conectar procurando "Slave"
+            slaves.add((ISlave) registry.lookup("Slave" + i));
+            System.out.println(" + Conectado ao Slave" + i);
+        }
+    }
+
+    public void executar() throws Exception {
+        // divide a estrada a partir do numero de slaves
+        int segmento = (int) Math.ceil((double) Config.L / numSlaves);
+
+        for (int step = 0; step < Config.STEPS; step++) {
+            List<Future<VeiculoMemoria[]>> futures = new ArrayList<>();
+
+            // copia da estrada pra enviar
+            final VeiculoMemoria[] copiaEstrada = Arrays.copyOf(estradaAtual, Config.L);
+
+            // distribui as taferas pros slaves
+            for (int i = 0; i < numSlaves; i++) {
+                final int id = i;
+                final int inicio = i * segmento;
+                final int fim = Math.min(inicio + segmento, Config.L);
+
+                // chama o metodo nos slaves
+                futures.add(executor.submit(() ->
+                        slaves.get(id).calcularSegmento(copiaEstrada, inicio, fim)
+                ));
+            }
+
+            // espera as respostas e cria a proxima estrada
+            Arrays.fill(proximaEstrada, null);
+            for (Future<VeiculoMemoria[]> f : futures) {
+                VeiculoMemoria[] parcial = f.get(); // bloqueia ate o slave mandar o resultado
+                for (int k = 0; k < Config.L; k++) {
+                    if (parcial[k] != null) proximaEstrada[k] = parcial[k];
+                }
+            }
+
+            // faz a troca de estradas
+            VeiculoMemoria[] temp = estradaAtual;
+            estradaAtual = proximaEstrada;
+            proximaEstrada = temp;
+        }
+        executor.shutdown(); // encerra as threads locais do master
+    }
+
+    public static void main(String[] args) {
+        // le o numero de slaves por um args
+        int n = (args.length > 0) ? Integer.parseInt(args[0]) : 2;
+
+        try {
+            System.out.println(" Master RMI - Teste com " + n + " Slaves");
+
+            Master master = new Master(n);
+            master.conectar();
+
+            // limpa a memoria pro benchmark
+            System.gc();
+            Thread.sleep(1000);
+
+            long memAntes = medMemoria();
+            long start = System.nanoTime();
+
+            master.executar(); // executa a simulacao
+
+            long end = System.nanoTime();
+            long memDepois = medMemoria();
+
+            long tempoMs = (end - start) / 1_000_000;
+            long usoMem = Math.max(0, memDepois - memAntes);
+
+            System.out.println("\nResultado:");
+            System.out.printf("Numero de Slaves:  %d\n", n);
+            System.out.printf("Tempo:   %d ms\n", tempoMs);
+            System.out.printf("Memoria: %d MB (no Master)\n", usoMem);
+
+        } catch (Exception e) {
+            System.err.println("Erro: " + e.getMessage());
+        }
+    }
+
+    // calcula a memoria em MB
+    static long medMemoria() {
+        Runtime rt = Runtime.getRuntime();
+        return (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+    }
+}
