@@ -75,38 +75,59 @@ public class Master {
             estradaAtual = proximaEstrada;
             proximaEstrada = temp;
         }
-        executor.shutdown(); // encerra as threads locais do master
+    }
+
+    public void encerrar() {
+        executor.shutdown();
     }
 
     public static void main(String[] args) {
-        // le o numero de slaves por um args
+        // le o numero de slaves e execucoes pelos args
         int n = (args.length > 0) ? Integer.parseInt(args[0]) : 2;
+        int rounds = (args.length > 1) ? Integer.parseInt(args[1]) : 5;
 
         try {
-            System.out.println(" Master RMI - Teste com " + n + " Slaves");
+            System.out.println(" Master RMI (Memoria) - Slaves: " + n + " | Rodadas: " + rounds);
 
             Master master = new Master(n);
             master.conectar();
 
-            // limpa a memoria pro benchmark
-            System.gc();
-            Thread.sleep(1000);
+            // warmup
+            master.executar();
 
-            long memAntes = medMemoria();
-            long start = System.nanoTime();
+            long somaTempo = 0;
+            long maxMemoria = 0;
 
-            master.executar(); // executa a simulacao
+            // loop de medicoes
+            for (int i = 1; i <= rounds; i++) {
+                // limpa a memoria pro benchmark
+                System.gc();
+                Thread.sleep(500);
 
-            long end = System.nanoTime();
-            long memDepois = medMemoria();
+                long memAntes = medMemoria();
+                long start = System.nanoTime();
 
-            long tempoMs = (end - start) / 1_000_000;
-            long usoMem = Math.max(0, memDepois - memAntes);
+                master.executar(); // executa a simulacao
 
-            System.out.println("\nResultado:");
-            System.out.printf("Numero de Slaves:  %d\n", n);
-            System.out.printf("Tempo:   %d ms\n", tempoMs);
-            System.out.printf("Memoria: %d MB (no Master)\n", usoMem);
+                long end = System.nanoTime();
+                long memDepois = medMemoria();
+
+                long tempoMs = (end - start) / 1_000_000;
+                long usoMem = Math.max(0, memDepois - memAntes);
+
+                somaTempo += tempoMs;
+                if (usoMem > maxMemoria) maxMemoria = usoMem;
+
+                System.out.printf("Rodada %d: %d ms | %d MB\n", i, tempoMs, usoMem);
+            }
+
+            master.encerrar();
+
+            // resultado final media
+            double media = (double) somaTempo / rounds;
+            System.out.println("\nResultado Final:");
+            System.out.printf("Tempo Medio: %.1f ms\n", media);
+            System.out.printf("Memoria Pico: %d MB (no Master)\n", maxMemoria);
 
         } catch (Exception e) {
             System.err.println("Erro: " + e.getMessage());

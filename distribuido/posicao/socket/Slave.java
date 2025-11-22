@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.Random;
 
 public class Slave {
-    static final int PORTA_BASE = 13000;
+    // Mantive a porta 51000 do seu código original
+    static final int PORTA_BASE = 51000;
 
     public static void main(String[] args) {
         // define o id pelo args
@@ -28,35 +29,44 @@ public class Slave {
     }
 
     private static void tratarConexao(Socket socket) {
-        try (ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-             ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+        try {
+            // reduz a latencia
+            socket.setTcpNoDelay(true);
 
-            Random random = new Random();
+            // buffering
+            try (ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+                 ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()))) {
 
-            while (true) {
-                // le a estrada e a lista de veículos
-                VeiculoPosicao[] estrada = (VeiculoPosicao[]) in.readObject();
-                List<VeiculoPosicao> meusVeiculos = (List<VeiculoPosicao>) in.readObject();
+                // envia o cabeçalho de serializacao
+                out.flush();
 
-                // calcula a velocidade
-                for (VeiculoPosicao v : meusVeiculos) {
-                    int vel = v.velocidade;
-                    if (vel < Config.V_MAX) vel++;
+                Random random = new Random();
 
-                    int dist = 1;
-                    while (dist <= Config.V_MAX) {
-                        int andar = (v.posicao + dist) % Config.L;
-                        if (estrada[andar] != null) break;
-                        dist++;
+                while (true) {
+                    // le a estrada e a lista de veículos
+                    VeiculoPosicao[] estrada = (VeiculoPosicao[]) in.readObject();
+                    List<VeiculoPosicao> meusVeiculos = (List<VeiculoPosicao>) in.readObject();
+
+                    // calcula a velocidade
+                    for (VeiculoPosicao v : meusVeiculos) {
+                        int vel = v.velocidade;
+                        if (vel < Config.V_MAX) vel++;
+
+                        int dist = 1;
+                        while (dist <= Config.V_MAX) {
+                            int andar = (v.posicao + dist) % Config.L;
+                            if (estrada[andar] != null) break;
+                            dist++;
+                        }
+                        vel = Math.min(vel, dist - 1);
+                        if (random.nextDouble() < Config.PROBABILIDADE) vel = Math.max(vel - 1, 0);
+                        v.velocidade = vel;
                     }
-                    vel = Math.min(vel, dist - 1);
-                    if (random.nextDouble() < Config.PROBABILIDADE) vel = Math.max(vel - 1, 0);
-                    v.velocidade = vel;
-                }
 
-                out.writeObject(meusVeiculos); // envia a lista de veiculos atualizado
-                out.flush(); // envia os dados
-                out.reset(); // limpa o cache
+                    out.writeObject(meusVeiculos); // envia a lista de veiculos atualizado
+                    out.flush(); // envia o buffer
+                    out.reset(); // limpa o cache de referencias
+                }
             }
         } catch (EOFException e) {
             System.out.println("Master desconectou.");

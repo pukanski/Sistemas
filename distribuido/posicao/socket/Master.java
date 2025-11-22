@@ -11,7 +11,7 @@ import java.util.concurrent.*;
 
 public class Master {
     static final String HOST = "localhost";
-    static final int PORTA_BASE = 13000;
+    static final int PORTA_BASE = 51000;
 
     private int numSlaves;
     private VeiculoPosicao[] estrada;
@@ -28,11 +28,11 @@ public class Master {
     }
 
     public void conectar() throws IOException {
-        System.out.println("Conectando a " + numSlaves + " slaves (Socket Posicao)...");
+        System.out.println("Tentando conectar a " + numSlaves + " slaves (Socket Posicao)...");
         for (int i = 0; i < numSlaves; i++) {
             int porta = PORTA_BASE + i;
             conexoes.add(new SocketContext(HOST, porta));
-            System.out.println(" + Conectado ao Slave " + (i + 1) + " na porta " + porta);
+            System.out.println(" + Conectado ao Slave " + (i + 1));
         }
     }
 
@@ -85,27 +85,50 @@ public class Master {
     }
 
     public static void main(String[] args) {
-        // le o numero de slaves pelo args
+        // le o numero de slaves e rodadas pelos args
         int n = (args.length > 0) ? Integer.parseInt(args[0]) : 2;
+        int rounds = (args.length > 1) ? Integer.parseInt(args[1]) : 5;
 
         try {
+            System.out.println(" Master Socket (Posicao) - Slaves: " + n + " | Rodadas: " + rounds);
+
             Master master = new Master(n);
             master.conectar();
 
-            System.gc(); Thread.sleep(500);
-            long memAntes = medMemoria();
-            long start = System.nanoTime();
-
+            // warmup
             master.executar();
 
-            long end = System.nanoTime();
-            long memDepois = medMemoria();
+            long somaTempo = 0;
+            long maxMemoria = 0;
 
-            System.out.println("\nRESULTADO (Posicao Socket):");
-            System.out.printf("Slaves: %d | Tempo: %d ms | Memoria: %d MB\n",
-                    n, (end - start)/1_000_000, Math.max(0, memDepois - memAntes));
+            // loop de medicoes
+            for(int i=1; i<=rounds; i++) {
+                System.gc(); Thread.sleep(500);
+
+                long memAntes = medMemoria();
+                long start = System.nanoTime();
+
+                master.executar();
+
+                long end = System.nanoTime();
+                long memDepois = medMemoria();
+
+                long tempoMs = (end - start)/1_000_000;
+                long usoMem = Math.max(0, memDepois - memAntes);
+
+                somaTempo += tempoMs;
+                if(usoMem > maxMemoria) maxMemoria = usoMem;
+
+                System.out.printf("Rodada %d: %d ms | %d MB\n", i, tempoMs, usoMem);
+            }
 
             master.fechar();
+
+            double media = (double) somaTempo / rounds;
+            System.out.println("\nResultado Final:");
+            System.out.printf("Tempo Medio: %.1f ms\n", media);
+            System.out.printf("Memoria Pico: %d MB\n", maxMemoria);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -119,12 +142,22 @@ public class Master {
 
     // classe pra gerenciar os sockets e o fluxo IO
     static class SocketContext {
-        Socket s; ObjectOutputStream out; ObjectInputStream in;
+        Socket s;
+        ObjectOutputStream out;
+        ObjectInputStream in;
+
         SocketContext(String host, int port) throws IOException {
             s = new Socket(host, port);
-            out = new ObjectOutputStream(s.getOutputStream());
-            in = new ObjectInputStream(s.getInputStream());
+
+            // agrupa os bytes antes de enviar
+            s.setTcpNoDelay(true); // desliga o algoritmo de Nagle
+
+            out = new ObjectOutputStream(new BufferedOutputStream(s.getOutputStream()));
+            out.flush(); // envia o cabeçalho inicial
+
+            in = new ObjectInputStream(new BufferedInputStream(s.getInputStream()));
         }
+
         void fechar() { try { s.close(); } catch (Exception e) {} }
     }
 }

@@ -9,5 +9,5 @@ public class Config {
     public static final int STEPS = 1000;
 
     // numero de threads
-    public static final int NUM_THREADS = Runtime.getRuntime().availableProcessors();
+    public static final int NUM_THREADS = 8;
 }

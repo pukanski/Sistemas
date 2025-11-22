@@ -8,13 +8,13 @@ import java.net.Socket;
 import java.util.Random;
 
 public class Slave {
-    static final int PORTA_BASE = 12345;
+    static final int PORTA_BASE = 50000;
 
     public static void main(String[] args) {
         // define o id do slave pelo args
         int id = (args.length > 0) ? Integer.parseInt(args[0]) : 1;
         int porta = PORTA_BASE + (id - 1);
-        System.out.println(">>> [Socket] Slave " + id + " ouvindo na porta " + porta);
+        System.out.println(">>> [Socket Memoria] Slave " + id + " ouvindo na porta " + porta);
 
         try (ServerSocket server = new ServerSocket(porta)) {
             while (true) {
@@ -27,42 +27,53 @@ public class Slave {
     }
 
     private static void tratarConexao(Socket socket) {
-        try (ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-             ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+        try {
+            // reduz a latencia
+            socket.setTcpNoDelay(true);
 
-            Random random = new Random();
+            // buffering
+            try (
+                    ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+                    ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()))
+            ) {
+                // envia o cabeçalho de serializacao
+                out.flush();
 
-            while (true) {
-                // le a estrada
-                int inicio = in.readInt();
-                int fim = in.readInt();
-                VeiculoMemoria[] estrada = (VeiculoMemoria[]) in.readObject();
+                Random random = new Random();
 
-                // array de resposta
-                VeiculoMemoria[] resposta = new VeiculoMemoria[Config.L];
-                // calcula as velocidades
-                for (int i = inicio; i < fim; i++) {
-                    VeiculoMemoria v = estrada[i];
-                    if (v != null) {
-                        int vel = v.velocidade;
-                        if (vel < Config.V_MAX) vel++;
+                while (true) {
+                    // le a estrada
+                    int inicio = in.readInt();
+                    int fim = in.readInt();
+                    VeiculoMemoria[] estrada = (VeiculoMemoria[]) in.readObject();
 
-                        int dist = 0;
-                        for (int k = 1; k < Config.L; k++) {
-                            dist++;
-                            if (estrada[(i + k) % Config.L] != null) break;
+                    // array de resposta
+                    VeiculoMemoria[] resposta = new VeiculoMemoria[Config.L];
+
+                    // calcula as velocidades
+                    for (int i = inicio; i < fim; i++) {
+                        VeiculoMemoria v = estrada[i];
+                        if (v != null) {
+                            int vel = v.velocidade;
+                            if (vel < Config.V_MAX) vel++;
+
+                            int dist = 0;
+                            for (int k = 1; k < Config.L; k++) {
+                                dist++;
+                                if (estrada[(i + k) % Config.L] != null) break;
+                            }
+                            vel = Math.min(vel, dist - 1);
+
+                            if (random.nextDouble() < Config.PROBABILIDADE && vel > 0) vel--;
+                            v.velocidade = vel;
+                            resposta[(i + vel) % Config.L] = v;
                         }
-                        vel = Math.min(vel, dist - 1);
-
-                        if (random.nextDouble() < Config.PROBABILIDADE && vel > 0) vel--;
-                        v.velocidade = vel;
-                        resposta[(i + vel) % Config.L] = v;
                     }
-                }
 
-                out.writeObject(resposta); // manda o array de resposta
-                out.flush(); // envia os bytes pelo socket
-                out.reset(); // limpa a tabela de referencia
+                    out.writeObject(resposta); // manda o array de resposta
+                    out.flush(); // envia o buffer acumulado pela rede
+                    out.reset(); // limpa a tabela de referencia
+                }
             }
         } catch (EOFException e) {
             System.out.println("Master desconectou.");
