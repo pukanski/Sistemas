@@ -80,9 +80,28 @@ public class ParaleloMemoriaExecutor implements ISimulacao {
             estradaAtual = proximaEstrada;
             proximaEstrada = temp;
             Arrays.fill(proximaEstrada, null);
+
+            if (Config.MODO_VISUAL) {
+                imprimirEstrada(estradaAtual, step);
+                Thread.sleep(Config.DELAY_VISUAL_MS);
+            }
         }
 
         // encerra as threads
         executor.shutdown();
+    }
+
+    private void imprimirEstrada(VeiculoMemoria[] estrada, int step) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("T=%03d [", step));
+        for (VeiculoMemoria v : estrada) {
+            if (v == null) sb.append(".");
+            else sb.append(v.velocidade);
+        }
+        sb.append("]");
+
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        System.out.println(sb.toString());
     }
 }

@@ -66,10 +66,30 @@ public class ParaleloPosicaoStream implements ISimulacao {
                     v.andar(Config.L);
                     estrada[v.posicao] = v;
                 });
+
+                if (Config.MODO_VISUAL) {
+                    imprimirEstrada(estrada, step);
+                    try { Thread.sleep(Config.DELAY_VISUAL_MS); } catch (InterruptedException e) {}
+                }
             }
         }).get(); // espera as threads terminarem
 
         // termina o pool de threads
         customPool.shutdown();
+    }
+
+    private void imprimirEstrada(VeiculoPosicao[] estrada, int step) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("T=%03d [", step));
+        for (VeiculoPosicao v : estrada) {
+            if (v == null) sb.append(".");
+            else sb.append(v.velocidade);
+        }
+        sb.append("]");
+
+        // Limpa o console e imprime
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        System.out.println(sb.toString());
     }
 }

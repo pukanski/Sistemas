@@ -78,6 +78,11 @@ public class SequencialPosicao implements ISimulacao {
                 v.andar(Config.L);
                 estrada[v.posicao] = v;
             }
+
+            if (Config.MODO_VISUAL) {
+                imprimirEstrada(estrada, step);
+                try { Thread.sleep(Config.DELAY_VISUAL_MS); } catch (Exception e) {}
+            }
         }
     }
 
@@ -93,5 +98,19 @@ public class SequencialPosicao implements ISimulacao {
             estradaRef[pos] = v;
         }
         return lista;
+    }
+
+    private void imprimirEstrada(VeiculoPosicao[] estrada, int step) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("T=%03d [", step));
+        for (VeiculoPosicao v : estrada) {
+            if (v == null) sb.append(".");
+            else sb.append(v.velocidade);
+        }
+        sb.append("]");
+
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        System.out.println(sb.toString());
     }
 }

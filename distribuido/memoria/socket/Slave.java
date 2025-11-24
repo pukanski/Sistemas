@@ -47,8 +47,10 @@ public class Slave {
                     int fim = in.readInt();
                     VeiculoMemoria[] estrada = (VeiculoMemoria[]) in.readObject();
 
+                    int tamEstrada = estrada.length;
+
                     // array de resposta
-                    VeiculoMemoria[] resposta = new VeiculoMemoria[Config.L];
+                    VeiculoMemoria[] resposta = new VeiculoMemoria[tamEstrada];
 
                     // calcula as velocidades
                     for (int i = inicio; i < fim; i++) {
@@ -58,15 +60,15 @@ public class Slave {
                             if (vel < Config.V_MAX) vel++;
 
                             int dist = 0;
-                            for (int k = 1; k < Config.L; k++) {
+                            for (int k = 1; k < tamEstrada; k++) {
                                 dist++;
-                                if (estrada[(i + k) % Config.L] != null) break;
+                                if (estrada[(i + k) % tamEstrada] != null) break;
                             }
                             vel = Math.min(vel, dist - 1);
 
                             if (random.nextDouble() < Config.PROBABILIDADE && vel > 0) vel--;
                             v.velocidade = vel;
-                            resposta[(i + vel) % Config.L] = v;
+                            resposta[(i + vel) % tamEstrada] = v;
                         }
                     }
 

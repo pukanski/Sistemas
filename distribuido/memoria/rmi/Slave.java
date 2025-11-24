@@ -13,8 +13,10 @@ public class Slave implements ISlave {
 
     @Override
     public VeiculoMemoria[] calcularSegmento(VeiculoMemoria[] estradaAtual, int inicio, int fim) throws RemoteException {
+        int tamEstrada = estradaAtual.length;
+
         // o array pra retornar
-        VeiculoMemoria[] proxima = new VeiculoMemoria[Config.L];
+        VeiculoMemoria[] proxima = new VeiculoMemoria[tamEstrada];
 
         for (int i = inicio; i < fim; i++) {
             VeiculoMemoria carro = estradaAtual[i];
@@ -24,9 +26,9 @@ public class Slave implements ISlave {
                 if (v < Config.V_MAX) v++;
 
                 int dist = 0;
-                for (int k = 1; k < Config.L; k++) {
+                for (int k = 1; k < tamEstrada; k++) {
                     dist++;
-                    if (estradaAtual[(i + k) % Config.L] != null) break;
+                    if (estradaAtual[(i + k) % tamEstrada] != null) break;
                 }
 
                 v = Math.min(v, dist - 1);
@@ -36,7 +38,7 @@ public class Slave implements ISlave {
                 carro.velocidade = v;
 
                 // escreve nos resultados
-                proxima[(i + v) % Config.L] = carro;
+                proxima[(i + v) % tamEstrada] = carro;
             }
         }
         return proxima;

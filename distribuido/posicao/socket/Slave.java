@@ -47,6 +47,8 @@ public class Slave {
                     VeiculoPosicao[] estrada = (VeiculoPosicao[]) in.readObject();
                     List<VeiculoPosicao> meusVeiculos = (List<VeiculoPosicao>) in.readObject();
 
+                    int tamEstrada = estrada.length;
+
                     // calcula a velocidade
                     for (VeiculoPosicao v : meusVeiculos) {
                         int vel = v.velocidade;
@@ -54,7 +56,7 @@ public class Slave {
 
                         int dist = 1;
                         while (dist <= Config.V_MAX) {
-                            int andar = (v.posicao + dist) % Config.L;
+                            int andar = (v.posicao + dist) % tamEstrada;
                             if (estrada[andar] != null) break;
                             dist++;
                         }

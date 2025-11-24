@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ParaleloMemoriaCyclicBarrier implements ISimulacao {
 
@@ -43,11 +44,20 @@ public class ParaleloMemoriaCyclicBarrier implements ISimulacao {
     // roda a simulacao
     @Override
     public void executar() throws InterruptedException {
+        AtomicInteger contador = new AtomicInteger(0);
+
         // cria a cyclic barrier falando pra acontecer a troca de buffers no final do calculo de velocidade e antes do proximo ciclo
         CyclicBarrier barreira = new CyclicBarrier(Config.NUM_THREADS, () -> {
             VeiculoMemoria[] temp = leitura;
             leitura = escrita;
             escrita = temp;
+
+            if (Config.MODO_VISUAL) {
+                int stepAtual = contador.incrementAndGet();
+                imprimirEstrada(leitura, stepAtual);
+                try { Thread.sleep(Config.DELAY_VISUAL_MS); } catch (InterruptedException e) {}
+            }
+
             Arrays.fill(escrita, null);
         });
 
@@ -118,5 +128,19 @@ public class ParaleloMemoriaCyclicBarrier implements ISimulacao {
             }
             return null;
         }
+    }
+
+    private void imprimirEstrada(VeiculoMemoria[] estrada, int step) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("T=%03d [", step));
+        for (VeiculoMemoria v : estrada) {
+            if (v == null) sb.append(".");
+            else sb.append(v.velocidade);
+        }
+        sb.append("]");
+
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        System.out.println(sb.toString());
     }
 }

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ParaleloPosicaoCyclicBarrier implements ISimulacao {
     private VeiculoPosicao[] estrada;
@@ -31,13 +32,20 @@ public class ParaleloPosicaoCyclicBarrier implements ISimulacao {
     // roda a simulacao
     @Override
     public void executar() throws InterruptedException {
+        AtomicInteger contador = new AtomicInteger(0);
         // cyclic barrier falando pra limpar a estrada antes do proximo ciclo
         CyclicBarrier barreiraCalculo = new CyclicBarrier(Config.NUM_THREADS, () -> {
             Arrays.fill(estrada, null);
         });
 
         // segunda barreira pra sincronizar o fim do movimento antes do proximo ciclo
-        CyclicBarrier barreiraMovimento = new CyclicBarrier(Config.NUM_THREADS);
+        CyclicBarrier barreiraMovimento = new CyclicBarrier(Config.NUM_THREADS, () -> {
+            if (Config.MODO_VISUAL) {
+                int currentStep = contador.getAndIncrement();
+                imprimirEstrada(estrada, currentStep);
+                try { Thread.sleep(Config.DELAY_VISUAL_MS); } catch (InterruptedException e) {}
+            }
+        });
 
         // prepara a lista das threads
         List<Worker> workers = new ArrayList<>();
@@ -112,5 +120,19 @@ public class ParaleloPosicaoCyclicBarrier implements ISimulacao {
             }
             return null;
         }
+    }
+
+    private void imprimirEstrada(VeiculoPosicao[] estrada, int step) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("T=%03d [", step));
+        for (VeiculoPosicao v : estrada) {
+            if (v == null) sb.append(".");
+            else sb.append(v.velocidade);
+        }
+        sb.append("]");
+
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        System.out.println(sb.toString());
     }
 }

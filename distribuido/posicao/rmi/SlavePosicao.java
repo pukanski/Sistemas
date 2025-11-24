@@ -9,11 +9,13 @@ import java.util.List;
 import java.util.Random;
 import java.rmi.RemoteException;
 
-public class Slave implements ISlave {
+public class SlavePosicao implements ISlave {
     private final Random random = new Random();
 
     @Override
     public List<VeiculoPosicao> calcularVelocidades(VeiculoPosicao[] estradaCompleta, List<VeiculoPosicao> meusVeiculos) throws RemoteException {
+        int tamEstrada = estradaCompleta.length;
+
         // calcula a velocidade
         for (VeiculoPosicao v : meusVeiculos) {
             int vel = v.velocidade;
@@ -22,7 +24,7 @@ public class Slave implements ISlave {
 
             int dist = 1;
             while (dist <= Config.V_MAX) {
-                int andar = (v.posicao + dist) % Config.L;
+                int andar = (v.posicao + dist) % tamEstrada;
                 if (estradaCompleta[andar] != null) break;
                 dist++;
             }
@@ -44,7 +46,7 @@ public class Slave implements ISlave {
             // define o nome do slave pelo args
             String nome = (args.length > 0) ? args[0] : "Slave1";
 
-            Slave obj = new Slave();
+            SlavePosicao obj = new SlavePosicao();
             // exporta o objeto com uma porta anonima
             ISlave stub = (ISlave) UnicastRemoteObject.exportObject(obj, 0);
             // registro rmi rodando na porta padrao

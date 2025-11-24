@@ -9,14 +9,14 @@ import java.rmi.registry.Registry;
 import java.util.*;
 import java.util.concurrent.*;
 
-public class Master {
+public class MasterPosicao {
     private int numSlaves;
     private VeiculoPosicao[] estrada;
     private List<VeiculoPosicao> veiculosList;
     private List<ISlave> slaves;
     private ExecutorService executor;
 
-    public Master(int n) {
+    public MasterPosicao(int n) {
         this.numSlaves = n;
         this.estrada = new VeiculoPosicao[Config.L];
         this.veiculosList = SequencialPosicao.gerarListaInicial(this.estrada);
@@ -70,8 +70,12 @@ public class Master {
                 }
             }
             this.veiculosList = novaLista;
+
+            if (Config.MODO_VISUAL) {
+                imprimirEstrada(estrada, step);
+                try { Thread.sleep(Config.DELAY_VISUAL_MS); } catch (Exception e) {}
+            }
         }
-        // obs: shutdown movido para encerrar() para permitir multiplas execucoes
     }
 
     public void encerrar() {
@@ -86,11 +90,11 @@ public class Master {
         try {
             System.out.println(" Master RMI (Posicao) - Slaves: " + n + " | Rodadas: " + rounds);
 
-            Master master = new Master(n);
-            master.conectar();
+            MasterPosicao masterPosicao = new MasterPosicao(n);
+            masterPosicao.conectar();
 
             // warmup
-            master.executar();
+            masterPosicao.executar();
 
             long somaTempo = 0;
             long maxMemoria = 0;
@@ -102,7 +106,7 @@ public class Master {
                 long memAntes = medMemoria();
                 long start = System.nanoTime();
 
-                master.executar();
+                masterPosicao.executar();
 
                 long end = System.nanoTime();
                 long memDepois = medMemoria();
@@ -116,7 +120,7 @@ public class Master {
                 System.out.printf("Rodada %d: %d ms | %d MB\n", i, tempoMs, usoMem);
             }
 
-            master.encerrar();
+            masterPosicao.encerrar();
 
             // resultado final media
             double media = (double) somaTempo / rounds;
@@ -133,5 +137,19 @@ public class Master {
     static long medMemoria() {
         Runtime rt = Runtime.getRuntime();
         return (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+    }
+
+    private void imprimirEstrada(VeiculoPosicao[] estrada, int step) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("T=%03d [", step));
+        for (VeiculoPosicao v : estrada) {
+            if (v == null) sb.append(".");
+            else sb.append(v.velocidade);
+        }
+        sb.append("]");
+
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        System.out.println(sb.toString());
     }
 }

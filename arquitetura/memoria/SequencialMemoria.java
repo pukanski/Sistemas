@@ -71,6 +71,12 @@ public class SequencialMemoria implements ISimulacao {
 
             // limpa o array proximaEstrada
             Arrays.fill(proximaEstrada, null);
+
+            // caso esteja no modo viusal no config, imprime a estrada e seus veiculos
+            if (Config.MODO_VISUAL) {
+                imprimirEstrada(estradaAtual, step);
+                try { Thread.sleep(Config.DELAY_VISUAL_MS); } catch (Exception e) {}
+            }
         }
     }
 
@@ -84,5 +90,20 @@ public class SequencialMemoria implements ISimulacao {
         for (int pos : posicoes) {
             estrada[pos] = new VeiculoMemoria(r.nextInt(Config.V_MAX + 1));
         }
+    }
+
+    // metodo auxiliar para imprimir a estrada
+    private void imprimirEstrada(VeiculoMemoria[] estrada, int step) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("T=%03d [", step));
+        for (VeiculoMemoria v : estrada) {
+            if (v == null) sb.append(".");
+            else sb.append(v.velocidade);
+        }
+        sb.append("]");
+        // Limpa o console (funciona na maioria dos terminais) e imprime
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        System.out.println(sb.toString());
     }
 }
